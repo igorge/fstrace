@@ -33,11 +33,14 @@ int main(int argc, char *argv[]) {
 
 
         auto fanotify_asio_handle = ([&](){
-            auto const fanotify_fd = fanotify_init(FAN_CLASS_NOTIF /*| FAN_UNLIMITED_QUEUE | FAN_UNLIMITED_MARKS*/, O_RDONLY);
+            auto const fanotify_fd = fanotify_init(FAN_CLASS_NOTIF | FAN_NONBLOCK /*| FAN_UNLIMITED_QUEUE | FAN_UNLIMITED_MARKS*/, O_RDONLY);
             GIE_CHECK_ERRNO(fanotify_fd!=-1);
-//            GIE_SCOPE_EXIT([&]{ GIE_CHECK_ERRNO( close(fanotify_fd)!= -1); });
-
-            return boost::asio::posix::stream_descriptor{io.service(), fanotify_fd};
+            try {
+                return boost::asio::posix::stream_descriptor{io.service(), fanotify_fd};
+            } catch (...) {
+                GIE_CHECK_ERRNO( close(fanotify_fd)!= -1);
+                throw;
+            }
         })();
 
         GIE_CHECK_ERRNO( fanotify_mark(fanotify_asio_handle.native_handle(), FAN_MARK_ADD | FAN_MARK_MOUNT, FAN_ACCESS | FAN_MODIFY |  FAN_CLOSE | FAN_OPEN  | FAN_ONDIR, 0, "/")==0 );
