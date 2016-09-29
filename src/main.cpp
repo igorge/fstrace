@@ -1,3 +1,5 @@
+#include "gie/asio/simple_service.hpp"
+#include "gie/util-scope-exit.hpp"
 #include "gie/exceptions.hpp"
 #include "gie/easy_start/safe_main.hpp"
 #include "gie/debug.hpp"
@@ -13,9 +15,14 @@
 #include <sys/fanotify.h>
 
 
+using async_io_t = gie::simple_asio_service_t<>;
+
+
 int main(int argc, char *argv[]) {
 
     return ::gie::main([&](){
+
+        async_io_t io;
 
         auto const old_loc  = std::locale::global(boost::locale::generator().generate(""));
         std::locale loc;
@@ -25,14 +32,38 @@ int main(int argc, char *argv[]) {
 
 
 
-        auto const fa_notify_handle = fanotify_init(FAN_CLASS_NOTIF /*| FAN_UNLIMITED_QUEUE | FAN_UNLIMITED_MARKS*/, O_RDWR);
+        auto fanotify_asio_handle = ([&](){
+            auto const fanotify_fd = fanotify_init(FAN_CLASS_NOTIF /*| FAN_UNLIMITED_QUEUE | FAN_UNLIMITED_MARKS*/, O_RDONLY);
+            GIE_CHECK_ERRNO(fanotify_fd!=-1);
+//            GIE_SCOPE_EXIT([&]{ GIE_CHECK_ERRNO( close(fanotify_fd)!= -1); });
 
-        //auto ec = boost::system::error_code(errno, boost::system::system_category());
+            return boost::asio::posix::stream_descriptor{io.service(), fanotify_fd};
+        })();
 
-        //std::cout << ec.message() << std::endl;
+        GIE_CHECK_ERRNO( fanotify_mark(fanotify_asio_handle.native_handle(), FAN_MARK_ADD | FAN_MARK_MOUNT, FAN_ACCESS | FAN_MODIFY |  FAN_CLOSE | FAN_OPEN  | FAN_ONDIR, 0, "/")==0 );
 
-        GIE_CHECK_ERRNO(fa_notify_handle!=-1);
-        GIE_CHECK_ERRNO( close(fa_notify_handle)!= -1);
+
+        std::vector<char> buffer; buffer.resize(4*1024);
+
+
+        std::function<void(const boost::system::error_code, const long unsigned int)> read_events = [&](const boost::system::error_code& ec, const long unsigned int& size){
+            if(!ec){
+                GIE_LOG("got " << size << "bytes" );
+                fanotify_asio_handle.async_read_some(boost::asio::buffer(buffer), read_events);
+            } else {
+                GIE_DEBUG_LOG("error: " << ec.message());
+                GIE_THROW(gie::exception::unexpected() << gie::exception::error_code_einfo(ec));
+            }
+        };
+
+        fanotify_asio_handle.async_read_some(boost::asio::buffer(buffer), read_events);
+
+        char a;
+        std::cin >> a;
+        //while(true){
+//            auto const size = read(fanotify_fd, buffer.data(), buffer.size());
+        //}
+
 
     });
 
