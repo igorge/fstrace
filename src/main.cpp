@@ -1,3 +1,4 @@
+#include "gie/sio/util-sio.hpp"
 #include "gie/asio/simple_service.hpp"
 #include "gie/util-scope-exit.hpp"
 #include "gie/exceptions.hpp"
@@ -7,6 +8,7 @@
 #include <boost/locale.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/system/system_error.hpp>
+#include <boost/filesystem.hpp>
 
 #include <iostream>
 
@@ -48,10 +50,40 @@ int main(int argc, char *argv[]) {
 
         std::vector<char> buffer; buffer.resize(4*1024);
 
+        auto const self_fd = boost::filesystem::path{"/proc/self/fd"};
+
+        auto const process_notify_event = [&](fanotify_event_metadata const& event){
+            GIE_CHECK(event.vers==FANOTIFY_METADATA_VERSION);
+
+            GIE_SCOPE_EXIT( [&](){GIE_CHECK_ERRNO( close(event.fd)!= -1);} );
+
+            boost::system::error_code ec;
+
+            auto const file_info_symlink = self_fd / std::to_string(event.fd);
+            auto const exe_symlink = boost::filesystem::path("/proc") / std::to_string(event.pid) / "exe";
+            auto const exe_path = boost::filesystem::read_symlink(exe_symlink, ec) ;
+            GIE_DEBUG_LOG( exe_path << ": " <<  boost::filesystem::read_symlink(file_info_symlink));
+
+        };
+
 
         std::function<void(const boost::system::error_code, const long unsigned int)> read_events = [&](const boost::system::error_code& ec, const long unsigned int& size){
             if(!ec){
-                GIE_LOG("got " << size << "bytes" );
+                //GIE_LOG("got " << size << " bytes" );
+
+                fanotify_event_metadata tmp;
+                size_t idx = 0;
+
+                while(idx<size){
+                    //GIE_DEBUG_LOG("IDX: "<< idx);
+                    GIE_CHECK(idx+sizeof(fanotify_event_metadata)<=size);
+                    memcpy(&tmp, buffer.data()+idx, sizeof(fanotify_event_metadata));
+                    process_notify_event(tmp);
+
+                    idx+=tmp.event_len;
+                }
+                 GIE_CHECK(idx==size);
+
                 fanotify_asio_handle.async_read_some(boost::asio::buffer(buffer), read_events);
             } else {
                 GIE_DEBUG_LOG("error: " << ec.message());
