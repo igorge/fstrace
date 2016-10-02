@@ -1,3 +1,5 @@
+#include "mount_info_parser.hpp"
+
 #include "gie/sio/util-sio.hpp"
 #include "gie/asio/simple_service.hpp"
 #include "gie/util-scope-exit.hpp"
@@ -9,6 +11,8 @@
 #include <boost/filesystem.hpp>
 #include <boost/system/system_error.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/tuple/tuple_io.hpp>
+#include <boost/optional/optional_io.hpp>
 
 #include <iostream>
 
@@ -19,10 +23,33 @@
 
 using async_io_t = gie::simple_asio_service_t<>;
 
+namespace std {
+
+    template<class T>
+    std::ostream &operator<<(ostream &os, const vector<T> &v) {
+        os << "[";
+        for (auto &&ii:v) {
+            os << " " << ii;
+        }
+        os << "]";
+        return os;
+    }
+
+}
 
 int main(int argc, char *argv[]) {
 
     return ::gie::main([&](){
+        std::string test{"23 30 40:20 /filesystems/@root\\134fs / rw,noatime - btrfs /dev/mapper/crypt_root rw,compress=lzo,ssd,space_cache,autodefrag,subvolid=939,subvol=/filesystems/@rootfs"};
+
+        gie::mountinfo_t mi;
+        bool const r = phrase_parse(test.cbegin(), test.cend(), gie::moutinfo_parser_t<std::string::const_iterator>{}, boost::spirit::ascii::blank,  mi);
+        std::cout << mi << std::endl;
+        GIE_CHECK(r);
+
+
+
+        return 0;
 
         async_io_t io;
 
