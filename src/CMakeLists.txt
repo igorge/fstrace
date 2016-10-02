@@ -26,7 +26,8 @@ include_directories(
 
 
 set(SOURCE_FILES
-        main.cpp )
+        main.cpp
+        mount_info_parser.cpp)
 
 
 ############################################################################

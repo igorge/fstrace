@@ -15,7 +15,7 @@
 #include <boost/optional/optional_io.hpp>
 
 #include <iostream>
-
+#include <assert.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/fanotify.h>
@@ -27,7 +27,7 @@ namespace std {
 
     template<class T>
     std::ostream &operator<<(ostream &os, const vector<T> &v) {
-        os << "[";
+        os << "v:"<<v.size()<<"[";
         for (auto &&ii:v) {
             os << " " << ii;
         }
@@ -37,26 +37,53 @@ namespace std {
 
 }
 
+
+std::vector<char> read_proc_file(std::string const& path){
+    auto const handle = fopen(path.c_str(), "r");
+    GIE_CHECK_ERRNO(handle!= nullptr);
+    GIE_SCOPE_EXIT([&](){  GIE_CHECK(fclose(handle)==0);  });
+
+    auto const inc_step = 4*1024;
+
+    std::vector<char> tmp;
+    tmp.resize(inc_step);
+    std::vector<char>::size_type i = 0;
+
+    for(;;){
+        auto const bytes_to_read = tmp.size()-i;
+        auto const bytes_read = fread(tmp.data()+i, 1, tmp.size()-i, handle);
+
+        if(bytes_to_read !=bytes_read) {
+            assert(bytes_read<bytes_to_read);
+            tmp.resize(i+bytes_read);
+            break;
+        } else {
+            i +=bytes_read;
+            tmp.resize(tmp.size()+inc_step);
+        }
+    }
+
+    return tmp;
+}
+
 int main(int argc, char *argv[]) {
 
     return ::gie::main([&](){
-        std::string test{"23 70 40:20 /filesystems/@root\\134fs / rw,noatime - btrfs /dev/mapper/crypt_root rw,compress=lzo,ssd,space_cache,autodefrag,subvolid=939,subvol=/filesystems/@rootfs"};
-
-        auto iter = test.cbegin();
-
-        gie::mountinfo_t mi;
-        try {
-            bool const r = phrase_parse(iter, test.cend(), gie::moutinfo_parser_t<std::string::const_iterator>{},
-                                        boost::spirit::ascii::blank, mi);
-        }catch (boost::spirit::qi::expectation_failure<std::string::const_iterator> const& x ) {
-            std::cout << "expected: " << x.what_ << '\n';
-            std::cout << "got: \"" << std::string(x.first, x.last) << '"' << std::endl;
-        }
-        std::cout << mi << std::endl;
-        GIE_DEBUG_LOG(std::string(iter, test.cend()));
-        //GIE_CHECK(r);
+        //std::string test{"23 70 40:20 /filesystems/@root\\134fs / rw,noatime - btrfs /dev/mapper/crypt_root rw,compress=lzo,ssd,space_cache,autodefrag,subvolid=939,subvol=/filesystems/@rootfs\n"};
 
 
+        std::vector<char> isbuffer = read_proc_file("/proc/self/mountinfo");
+//        std::ifstream is{"/proc/self/mountinfo", std::ios::in | std::ios::binary };
+//        is.exceptions( std::ifstream::failbit | std::ifstream::badbit );
+//        is.seekg(0, std::ios::end);
+//        GIE_CHECK(is.tellg()>0);
+//        isbuffer.resize(is.tellg());
+//        is.seekg(0);
+
+//        is.read(isbuffer.data(), isbuffer.size());
+
+        auto const & mounts = gie::parse_mounts(isbuffer);
+        std::cout << mounts << std::endl;
 
         return 0;
 
