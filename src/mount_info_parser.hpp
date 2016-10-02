@@ -6,6 +6,9 @@
 #ifndef H_GUARD_MOUNT_INFO_PARSER_2016_10_01_23_08
 #define H_GUARD_MOUNT_INFO_PARSER_2016_10_01_23_08
 //================================================================================================================================================
+#include "gie/log/debug.hpp"
+#include "gie/exceptions.hpp"
+
 #include <boost/spirit/home/qi/action.hpp>
 #include <boost/spirit/home/qi/auto.hpp>
 #include <boost/spirit/home/qi/auxiliary.hpp>
@@ -56,12 +59,14 @@ namespace gie {
 
         SkipperT skipper;
 
-        moutinfo_parser_t() : moutinfo_parser_t::base_type(start)
+        moutinfo_parser_t() : moutinfo_parser_t::base_type(start, "mountinfo")
         {
+            using boost::spirit::qi::on_error;
             using boost::spirit::qi::int_;
             using boost::spirit::qi::lit;
             using boost::spirit::ascii::char_;
             using boost::spirit::eol;
+            using boost::spirit::eps;
             using boost::spirit::attr;
             using boost::spirit::lexeme;
             using boost::spirit::skip;
@@ -89,17 +94,26 @@ namespace gie {
             rule_fs_type %= p_fstype_string >> -( lit('.') >> rule_string);
 
             start
-                    %= int_    // mount id
-                    >> int_    // parent id
-                    >> rule_major_minor //major:minor of st_dev
-                    >> rule_string // root: the pathname of the directory in the filesystem which forms the root of this mount
-                    >> rule_string // mount point: the pathname of the mount point relative to the process's root directory.
-                    >> rule_comma_seperated // mount point: the pathname of the mount point relative to the process's root directory
-                    >> rule_opt_fields // optional fields: zero or more fields of the form "tag[:value]", separator: the end of the optional fields is marked by a single hyphen
-                    >> rule_fs_type // filesystem type: the filesystem type in the form "type[.subtype]"
-                    >> rule_string // mount source: filesystem-specific information or "none".
-                    >> rule_comma_seperated // super options: per-superblock options.
+                    %=eps
+                    > int_    // mount id
+                    > int_    // parent id
+                    > rule_major_minor //major:minor of st_dev
+                    > rule_string // root: the pathname of the directory in the filesystem which forms the root of this mount
+                    > rule_string // mount point: the pathname of the mount point relative to the process's root directory.
+                    > rule_comma_seperated // mount point: the pathname of the mount point relative to the process's root directory
+                    > rule_opt_fields // optional fields: zero or more fields of the form "tag[:value]", separator: the end of the optional fields is marked by a single hyphen
+                    > rule_fs_type // filesystem type: the filesystem type in the form "type[.subtype]"
+                    > rule_string // mount source: filesystem-specific information or "none".
+                    > rule_comma_seperated // super options: per-superblock options.
                     ;
+
+
+            start.name("start");
+
+//            on_error<>(start, [](auto&& args, auto&& context, auto&& r){
+//                GIE_DEBUG_LOG("lffffffffffffffffffffffffffffffffffffffffffffalal");
+//
+//            });
         }
 
         rule_ns<boost::tuple<int,int>()> rule_major_minor;

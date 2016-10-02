@@ -40,12 +40,21 @@ namespace std {
 int main(int argc, char *argv[]) {
 
     return ::gie::main([&](){
-        std::string test{"23 30 40:20 /filesystems/@root\\134fs / rw,noatime - btrfs /dev/mapper/crypt_root rw,compress=lzo,ssd,space_cache,autodefrag,subvolid=939,subvol=/filesystems/@rootfs"};
+        std::string test{"23 70 40:20 /filesystems/@root\\134fs / rw,noatime - btrfs /dev/mapper/crypt_root rw,compress=lzo,ssd,space_cache,autodefrag,subvolid=939,subvol=/filesystems/@rootfs"};
+
+        auto iter = test.cbegin();
 
         gie::mountinfo_t mi;
-        bool const r = phrase_parse(test.cbegin(), test.cend(), gie::moutinfo_parser_t<std::string::const_iterator>{}, boost::spirit::ascii::blank,  mi);
+        try {
+            bool const r = phrase_parse(iter, test.cend(), gie::moutinfo_parser_t<std::string::const_iterator>{},
+                                        boost::spirit::ascii::blank, mi);
+        }catch (boost::spirit::qi::expectation_failure<std::string::const_iterator> const& x ) {
+            std::cout << "expected: " << x.what_ << '\n';
+            std::cout << "got: \"" << std::string(x.first, x.last) << '"' << std::endl;
+        }
         std::cout << mi << std::endl;
-        GIE_CHECK(r);
+        GIE_DEBUG_LOG(std::string(iter, test.cend()));
+        //GIE_CHECK(r);
 
 
 
