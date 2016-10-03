@@ -24,6 +24,11 @@ namespace gie {
 
 
     struct mount_change_monitor_t {
+        typedef boost::filesystem::path path_t;
+        typedef decltype(fanotify_event_metadata::pid) pid_t;
+        typedef decltype(fanotify_event_metadata::mask) event_mask_t;
+
+        typedef boost::function<void(pid_t const, path_t const& /*exe*/, path_t const& /*file*/, event_mask_t const)> callback_t;
 
         static auto const event_buffer_size = 4*1024;
 
@@ -31,7 +36,7 @@ namespace gie {
         mount_change_monitor_t(mount_change_monitor_t const &) = delete;
         mount_change_monitor_t& operator=(mount_change_monitor_t const&) = delete;
 
-        mount_change_monitor_t(){
+        mount_change_monitor_t(callback_t && callback): m_callback(std::move(callback)) {
             m_buffer.resize(event_buffer_size);
 
             async_read_events_();
@@ -39,8 +44,14 @@ namespace gie {
 
         ~mount_change_monitor_t(){}
 
+
+        void add_mark(std::string const& mount_point){
+            GIE_CHECK_ERRNO( fanotify_mark(m_fanotify_asio_handle.native_handle(), FAN_MARK_ADD | FAN_MARK_MOUNT, FAN_ACCESS | FAN_MODIFY |  FAN_CLOSE | FAN_OPEN  | FAN_ONDIR, 0, mount_point.c_str())==0 );
+        }
+
     private:
         std::vector<char> m_buffer;
+        callback_t m_callback;
         async_io_t m_io;
 
         boost::asio::posix::stream_descriptor m_fanotify_asio_handle = ([&](){
@@ -58,7 +69,27 @@ namespace gie {
         void process_notify_event_(fanotify_event_metadata const& event);
         void read_events_(boost::system::error_code const & ec, long unsigned int const & size);
 
+
+        static void event_bit2char_(event_mask_t const em, event_mask_t const bit, char const c, std::string& str){
+            if( (em & bit) == bit) str+=c;
+        }
+
         static boost::filesystem::path const m_self_fd;
+
+    public:
+        static std::string event_mask2string(event_mask_t const em){
+            std::string tmp;
+            tmp.reserve(4);
+
+            event_bit2char_(em,FAN_OPEN,'O',tmp);
+            event_bit2char_(em,FAN_ACCESS,'R',tmp);
+            event_bit2char_(em,FAN_MODIFY,'W',tmp);
+            event_bit2char_(em,FAN_CLOSE_NOWRITE,'c',tmp);
+            event_bit2char_(em,FAN_CLOSE_WRITE,'C',tmp);
+
+            return tmp;
+        }
+
     };
 
 

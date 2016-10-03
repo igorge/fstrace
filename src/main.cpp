@@ -84,22 +84,22 @@ int main(int argc, char *argv[]) {
         boost::filesystem::path::imbue(std::locale());
 
 
-        std::vector<char> isbuffer = read_proc_file("/proc/self/mountinfo");
-
-        auto const & mounts = gie::parse_mounts(isbuffer);
-        std::cout << "MOUNTS: " <<  mounts.size() << std::endl;
+        auto const & mounts = gie::parse_mounts(read_proc_file("/proc/self/mountinfo"));
+        GIE_DEBUG_LOG("MOUNTS: " <<  mounts.size());
 
         auto const& filtered_mounts = filter_mounts(mounts, ignore_fs_types);
 
+        gie::mount_change_monitor_t fsmonitor{[](auto const pid, auto const& exe, auto const& file, auto const event_mask){
+            std::cout << exe << " ("<<pid<<"): ["<<gie::mount_change_monitor_t::event_mask2string(event_mask)<<"] " << file << std::endl;
+
+        }};
+
         for( auto&& i:filtered_mounts){
-            std::cout << "fstype: " << boost::get<0>(i.fs_type) << " @ " <<i.mount_point<< "\n";
+            GIE_DEBUG_LOG("MONITORING '" << boost::get<0>(i.fs_type) << "' @ '" <<i.mount_point<<"'");
+            fsmonitor.add_mark(i.mount_point);
         }
 
-
-        gie::mount_change_monitor_t fsmonitor;
-
-        char a;
-        std::cin >> a;
+        std::cin.get();
 
     });
 

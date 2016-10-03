@@ -11,18 +11,24 @@ namespace gie {
     boost::filesystem::path const mount_change_monitor_t::m_self_fd = boost::filesystem::path{"/proc/self/fd"};
 
 
-
     void mount_change_monitor_t::process_notify_event_(fanotify_event_metadata const& event){
         GIE_CHECK(event.vers==FANOTIFY_METADATA_VERSION);
 
         GIE_SCOPE_EXIT( [&](){GIE_CHECK_ERRNO( close(event.fd)!= -1);} );
+
+        GIE_CHECK( (event.mask & FAN_Q_OVERFLOW)==0 );
 
         boost::system::error_code ec;
 
         auto const file_info_symlink = m_self_fd / std::to_string(event.fd);
         auto const exe_symlink = boost::filesystem::path("/proc") / std::to_string(event.pid) / "exe";
         auto const exe_path = boost::filesystem::read_symlink(exe_symlink, ec) ;
-        GIE_DEBUG_LOG( exe_path << ": " <<  boost::filesystem::read_symlink(file_info_symlink));
+
+        if(ec){
+            GIE_DEBUG_LOG("failed to read exe path from "<<exe_symlink);
+        }
+
+        m_callback(event.pid, exe_path, boost::filesystem::read_symlink(file_info_symlink), event.mask);
 
     };
 
