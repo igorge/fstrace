@@ -78,6 +78,7 @@ namespace gie {
 
             rule_fs_type %= p_fstype_string >> -( lit('.') >> rule_string);
 
+
             r_mount_info.name("r_mount_info");
             r_mount_info
                      %= int_   // mount id
@@ -85,7 +86,7 @@ namespace gie {
                       > rule_major_minor //major:minor of st_dev
                       > rule_string // root: the pathname of the directory in the filesystem which forms the root of this mount
                       > rule_string // mount point: the pathname of the mount point relative to the process's root directory.
-                      > rule_comma_seperated // mount point: the pathname of the mount point relative to the process's root directory
+                      > rule_comma_seperated // mount options: per-mount options.
                       > rule_opt_fields // optional fields: zero or more fields of the form "tag[:value]", separator: the end of the optional fields is marked by a single hyphen
                       > rule_fs_type // filesystem type: the filesystem type in the form "type[.subtype]"
                       > rule_string // mount source: filesystem-specific information or "none".

@@ -6,27 +6,27 @@
 #ifndef H_GUARD_MOUNT_INFO_PARSER_2016_10_01_23_08
 #define H_GUARD_MOUNT_INFO_PARSER_2016_10_01_23_08
 //================================================================================================================================================
-#include <boost/tuple/tuple.hpp>
-#include <boost/optional.hpp>
+#include "mount_info.hpp"
 #include <boost/range/any_range.hpp>
-
-#include <vector>
-#include <string>
 //================================================================================================================================================
 namespace gie {
 
-    typedef boost::tuple<
-            int,
-            int,
-            boost::tuple<int,int>,
-            std::string,
-            std::string,
-            std::vector<std::string>,
-            std::vector<boost::tuple<std::string,boost::optional<std::string>>>,
-            boost::tuple<std::string,boost::optional<std::string>>,
-            std::string,
-            std::vector<std::string>
-    > mountinfo_t;
+
+
+
+//
+//    typedef boost::tuple<
+//            int,
+//            int,
+//            boost::tuple<int,int>,
+//            std::string,
+//            std::string,
+//            std::vector<std::string>,
+//            std::vector<boost::tuple<std::string,boost::optional<std::string>>>,
+//            boost::tuple<std::string,boost::optional<std::string>>,
+//            std::string,
+//            std::vector<std::string>
+//    > mountinfo_t;
 
 
     typedef std::vector<mountinfo_t> mounts_t;

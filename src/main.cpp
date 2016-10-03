@@ -11,8 +11,12 @@
 #include <boost/filesystem.hpp>
 #include <boost/system/system_error.hpp>
 #include <boost/filesystem.hpp>
-#include <boost/tuple/tuple_io.hpp>
+
 #include <boost/optional/optional_io.hpp>
+#include <boost/fusion/sequence/io.hpp>
+
+#include <boost/range/algorithm/copy.hpp>
+#include <boost/range/adaptor/filtered.hpp>
 
 #include <iostream>
 #include <assert.h>
@@ -23,19 +27,19 @@
 
 using async_io_t = gie::simple_asio_service_t<>;
 
-namespace std {
-
-    template<class T>
-    std::ostream &operator<<(ostream &os, const vector<T> &v) {
-        os << "v:"<<v.size()<<"[";
-        for (auto &&ii:v) {
-            os << " " << ii;
-        }
-        os << "]";
-        return os;
-    }
-
-}
+//namespace std {
+//
+//    template<class T>
+//    std::ostream &operator<<(ostream &os, const vector<T> &v) {
+//        os << "v:"<<v.size()<<"[";
+//        for (auto &&ii:v) {
+//            os << " " << ii;
+//        }
+//        os << "]";
+//        return os;
+//    }
+//
+//}
 
 
 std::vector<char> read_proc_file(std::string const& path){
@@ -66,28 +70,19 @@ std::vector<char> read_proc_file(std::string const& path){
     return tmp;
 }
 
+std::set<std::string> const ignore_fs_types{"sysfs", "cgroup", "proc", "devtmpfs", "devpts", "pstore", "securityfs", "rpc_pipefs", "fusectl", "binfmt_misc", "fuseblk", "fuse"};
+
+template <class Vec>
+auto filter_mounts(Vec const& input, std::set<std::string> const& filter)->auto{
+    return (input | boost::adaptors::filtered([&](gie::mountinfo_t const& mi){
+        return filter.count(boost::get<0>(mi.fs_type))==0;
+    }));
+}
+
+
 int main(int argc, char *argv[]) {
 
     return ::gie::main([&](){
-        //std::string test{"23 70 40:20 /filesystems/@root\\134fs / rw,noatime - btrfs /dev/mapper/crypt_root rw,compress=lzo,ssd,space_cache,autodefrag,subvolid=939,subvol=/filesystems/@rootfs\n"};
-
-
-        std::vector<char> isbuffer = read_proc_file("/proc/self/mountinfo");
-//        std::ifstream is{"/proc/self/mountinfo", std::ios::in | std::ios::binary };
-//        is.exceptions( std::ifstream::failbit | std::ifstream::badbit );
-//        is.seekg(0, std::ios::end);
-//        GIE_CHECK(is.tellg()>0);
-//        isbuffer.resize(is.tellg());
-//        is.seekg(0);
-
-//        is.read(isbuffer.data(), isbuffer.size());
-
-        auto const & mounts = gie::parse_mounts(isbuffer);
-        std::cout << mounts << std::endl;
-
-        return 0;
-
-        async_io_t io;
 
         auto const old_loc  = std::locale::global(boost::locale::generator().generate(""));
         std::locale loc;
@@ -95,6 +90,21 @@ int main(int argc, char *argv[]) {
         GIE_DEBUG_LOG(  "The current locale is: " << loc.name( )  );
         boost::filesystem::path::imbue(std::locale());
 
+
+        std::vector<char> isbuffer = read_proc_file("/proc/self/mountinfo");
+
+        auto const & mounts = gie::parse_mounts(isbuffer);
+        std::cout << "MOUNTS: " <<  mounts.size() << std::endl;
+
+        auto const& filtered_mounts = filter_mounts(mounts, ignore_fs_types);
+
+        for( auto&& i:filtered_mounts){
+            std::cout << "fstype: " << boost::get<0>(i.fs_type) << " @ " <<i.mount_point<< "\n";
+        }
+
+        return 0;
+
+        async_io_t io;
 
 
         auto fanotify_asio_handle = ([&](){
