@@ -31,15 +31,16 @@
 namespace gie {
 
 
-    template <typename Iterator, typename SkipperT = boost::spirit::ascii::blank_type>
-    struct moutinfo_parser_t : boost::spirit::qi::grammar<Iterator, mounts_t(), SkipperT>
+    template <typename Iterator>
+    struct moutinfo_parser_t : boost::spirit::qi::grammar<Iterator, mounts_t(), boost::spirit::ascii::blank_type>
     {
+        typedef boost::spirit::ascii::blank_type skipper_type;
+        
         template <class T>
-        using rule = boost::spirit::qi::rule<Iterator, T, SkipperT>;
+        using rule = boost::spirit::qi::rule<Iterator, T, skipper_type>;
 
         template <class T>
         using rule_ns = boost::spirit::qi::rule<Iterator, T>;
-
 
         moutinfo_parser_t() : moutinfo_parser_t::base_type(start, "mountinfo")
         {
@@ -56,7 +57,7 @@ namespace gie {
             using boost::spirit::skip;
             using boost::spirit::qi::ulong_long;
 
-            auto const skipper = copy( SkipperT{} );
+            auto const skipper = copy( skipper_type{} );
 
             auto const p_char = copy(
                                  (lit("\\134") >> attr('\\')) |
