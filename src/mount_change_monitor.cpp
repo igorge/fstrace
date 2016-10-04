@@ -3,9 +3,7 @@
 // (c) GIE 2016-10-03  17:48
 //
 //================================================================================================================================================
-//================================================================================================================================================
 #include "mount_change_monitor.hpp"
-
 //================================================================================================================================================
 namespace gie {
     boost::filesystem::path const mount_change_monitor_t::m_self_fd = boost::filesystem::path{"/proc/self/fd"};
@@ -28,7 +26,7 @@ namespace gie {
             GIE_DEBUG_LOG("failed to read exe path from "<<exe_symlink);
         }
 
-        m_callback(event.pid, exe_path, boost::filesystem::read_symlink(file_info_symlink), event.mask);
+        auto const& insert_r = m_pid_cache.insert( cached_pid_t{event.pid} );
 
     };
 
