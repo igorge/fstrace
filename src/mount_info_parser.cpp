@@ -43,6 +43,7 @@ namespace gie {
 
         moutinfo_parser_t() : moutinfo_parser_t::base_type(start, "mountinfo")
         {
+            using boost::spirit::qi::copy;
             using boost::spirit::qi::on_error;
             using boost::spirit::qi::int_;
             using boost::spirit::qi::lit;
@@ -55,26 +56,27 @@ namespace gie {
             using boost::spirit::skip;
             using boost::spirit::qi::ulong_long;
 
-            auto const skipper = SkipperT{};
+            auto const skipper = copy( SkipperT{} );
 
-            auto const p_char =  (lit("\\134") >> attr('\\')) |
+            auto const p_char = copy(
+                                 (lit("\\134") >> attr('\\')) |
                                  (lit("\\040") >> attr(' ')) |
-                                 (char_ - (skipper | eol) );
+                                 (char_ - (skipper | eol) ));
 
             rule_major_minor %= int_ >> lit(':') >> int_;
 
             rule_string  %= +(p_char);
 
 
-            auto const p_string_wo_comma = +(p_char - (',' | skipper) );
+            auto const p_string_wo_comma = copy( +(p_char - (',' | skipper) ) );
             rule_comma_seperated %= p_string_wo_comma >> *(lit(',') >> p_string_wo_comma);
 
-            auto const p_opt_field_string = +(p_char - (lit(',') | ':' | '-' ));
+            auto const p_opt_field_string = copy( +(p_char - (lit(',') | ':' | '-' )) );
 
             rule_opt_field %= p_opt_field_string >> -( lit(':') >> p_opt_field_string);
             rule_opt_fields %= -(rule_opt_field >> *(lit(',')  >> rule_opt_field )) >> skip(skipper)['-'];
 
-            auto const p_fstype_string = +(p_char-'.');
+            auto const p_fstype_string = copy(+(p_char-'.'));
 
             rule_fs_type %= p_fstype_string >> -( lit('.') >> rule_string);
 
