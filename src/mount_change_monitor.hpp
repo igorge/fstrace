@@ -32,11 +32,13 @@ namespace gie {
 
         struct cached_pid_t{
             pid_t pid;
+            boost::filesystem::path exe_path;
         };
 
         struct cached_pid_key_extractor_t{
             typedef pid_t result_type;
             result_type operator()(cached_pid_t const& v) const { return v.pid; }
+            result_type& operator()(cached_pid_t& v) const { return v.pid; }
         };
 
         typedef timeout_cache_t<cached_pid_t, cached_pid_key_extractor_t> pid_cache_t;

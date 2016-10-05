@@ -11,6 +11,12 @@ find_package(Boost COMPONENTS filesystem system thread serialization date_time l
 
 #add_definitions(-D_FILE_OFFSET_BITS=64)
 
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    message("*** Debug build. ***")
+    add_definitions(-DBOOST_MULTI_INDEX_ENABLE_SAFE_MODE)
+    add_definitions(-DBOOST_MULTI_INDEX_ENABLE_INVARIANT_CHECKING)
+endif ()
+
 ############################################################################
 add_subdirectory(../../libgie/ ${PROJECT_BINARY_DIR}/extlib/gie )
 
