@@ -1,3 +1,4 @@
+//================================================================================================================================================
 #include "mount_change_monitor.hpp"
 #include "mount_info_parser.hpp"
 
@@ -19,20 +20,8 @@
 #include <assert.h>
 #include <fcntl.h>
 #include <unistd.h>
+//================================================================================================================================================
 
-//namespace std {
-//
-//    template<class T>
-//    std::ostream &operator<<(ostream &os, const vector<T> &v) {
-//        os << "v:"<<v.size()<<"[";
-//        for (auto &&ii:v) {
-//            os << " " << ii;
-//        }
-//        os << "]";
-//        return os;
-//    }
-//
-//}
 
 
 std::vector<char> read_proc_file(std::string const& path){
@@ -63,7 +52,13 @@ std::vector<char> read_proc_file(std::string const& path){
     return tmp;
 }
 
+
+
+
 std::set<std::string> const ignore_fs_types{"sysfs", "cgroup", "proc", "devtmpfs", "devpts", "pstore", "securityfs", "rpc_pipefs", "fusectl", "binfmt_misc", "fuseblk", "fuse"};
+
+
+
 
 template <class Vec>
 auto filter_mounts(Vec const& input, std::set<std::string> const& filter)->auto{
@@ -71,6 +66,7 @@ auto filter_mounts(Vec const& input, std::set<std::string> const& filter)->auto{
         return filter.count(boost::get<0>(mi.fs_type))==0;
     }));
 }
+
 
 
 int main(int argc, char *argv[]) {
@@ -82,7 +78,6 @@ int main(int argc, char *argv[]) {
         GIE_DEBUG_LOG(  "The previous locale is: " << old_loc.name( )  );
         GIE_DEBUG_LOG(  "The current locale is: " << loc.name( )  );
         boost::filesystem::path::imbue(std::locale());
-
 
         auto const & mounts = gie::parse_mounts(read_proc_file("/proc/self/mountinfo"));
         GIE_DEBUG_LOG("MOUNTS: " <<  mounts.size());
@@ -99,7 +94,14 @@ int main(int argc, char *argv[]) {
             fsmonitor.add_mark(i.mount_point);
         }
 
-        std::cin.get();
+        sigset_t set;
+        GIE_CHECK( sigemptyset(&set)==0 );
+        GIE_CHECK( sigaddset(&set, SIGINT)==0 );
+        int sig=0;
+        GIE_CHECK( pthread_sigmask( SIG_BLOCK, &set, NULL )==0 );
+        GIE_CHECK(sigwait(&set, &sig)==0);
+        GIE_CHECK(sig==SIGINT);
+        GIE_DEBUG_LOG("Terminated.");
 
     });
 

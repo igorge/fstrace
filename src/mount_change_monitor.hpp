@@ -66,6 +66,8 @@ namespace gie {
             GIE_CHECK_ERRNO( fanotify_mark(m_fanotify_asio_handle.native_handle(), FAN_MARK_ADD | FAN_MARK_MOUNT, FAN_ACCESS | FAN_MODIFY |  FAN_CLOSE | FAN_OPEN  | FAN_ONDIR, 0, mount_point.c_str())==0 );
         }
 
+        auto io_service()->auto& { return m_io.service(); }
+
     private:
         std::vector<char> m_buffer;
         callback_t m_callback;
