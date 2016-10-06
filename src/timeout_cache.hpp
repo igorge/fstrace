@@ -41,7 +41,7 @@ namespace gie {
             result_type& operator()(cache_value_t& v) const { return m_key_extractor(v.data); }
 
         private:
-            KeyExtractor const m_key_extractor;
+            KeyExtractor m_key_extractor;
         };
 
         typedef boost::multi_index_container<
