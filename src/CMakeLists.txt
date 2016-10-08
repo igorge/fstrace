@@ -6,7 +6,7 @@ set(proj_exe_name fstrace)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -Wall -Wextra -Wno-deprecated -Wno-unused-parameter")
 
-find_package(Boost COMPONENTS filesystem system thread serialization date_time locale)
+find_package(Boost COMPONENTS filesystem system thread program_options serialization date_time locale)
 ############################################################################
 
 #add_definitions(-D_FILE_OFFSET_BITS=64)

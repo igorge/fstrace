@@ -21,6 +21,11 @@
 //================================================================================================================================================
 namespace gie {
 
+    namespace exception {
+        struct fanotify : virtual root {};
+        struct fanotify_mark : virtual fanotify {};
+    }
+
     using async_io_t = gie::simple_asio_service_t<>;
 
 
@@ -63,7 +68,9 @@ namespace gie {
 
 
         void add_mark(std::string const& mount_point){
-            GIE_CHECK_ERRNO( fanotify_mark(m_fanotify_asio_handle.native_handle(), FAN_MARK_ADD | FAN_MARK_MOUNT, FAN_ACCESS | FAN_MODIFY |  FAN_CLOSE | FAN_OPEN  | FAN_ONDIR, 0, mount_point.c_str())==0 );
+            GIE_CHECK_ERRNO_EX(
+                    fanotify_mark(m_fanotify_asio_handle.native_handle(), FAN_MARK_ADD | FAN_MARK_MOUNT, FAN_ACCESS | FAN_MODIFY |  FAN_CLOSE | FAN_OPEN  | FAN_ONDIR, 0, mount_point.c_str())==0,
+                    exception::fanotify_mark() << exception::error_str_einfo(mount_point) );
         }
 
         auto io_service()->auto& { return m_io.service(); }
