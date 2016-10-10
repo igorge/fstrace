@@ -58,13 +58,27 @@ namespace gie {
         mount_change_monitor_t(mount_change_monitor_t const &) = delete;
         mount_change_monitor_t& operator=(mount_change_monitor_t const&) = delete;
 
-        mount_change_monitor_t(callback_t && callback): m_callback(std::move(callback)) {
+        template <class T1, class T2>
+        mount_change_monitor_t(T1 && io, T2 && callback)
+                : m_io(io)
+                , m_callback(std::forward<T2>(callback))
+        {
             m_buffer.resize(event_buffer_size);
 
             async_read_events_();
         };
 
-        ~mount_change_monitor_t(){}
+        template <class T2>
+        mount_change_monitor_t(T2 && callback) : mount_change_monitor_t( boost::make_shared<gie::shared_io_service_t::element_type>(), std::forward<T2>(callback) ){}
+
+        ~mount_change_monitor_t(){
+            try {
+                m_fanotify_asio_handle.cancel();
+                m_io.stop_sync();
+            } catch (...) {
+                GIE_UNEXPECTED_IN_DTOR();
+            }
+        }
 
 
         void add_mark(std::string const& mount_point){
@@ -74,11 +88,12 @@ namespace gie {
         }
 
         auto io_service()->auto& { return m_io.service(); }
+        auto io_shared_service()->auto{ return m_io.shared_service(); }
 
     private:
         std::vector<char> m_buffer;
-        callback_t m_callback;
         async_io_t m_io;
+        callback_t m_callback;
 
         boost::asio::posix::stream_descriptor m_fanotify_asio_handle = ([&](){
             auto const fanotify_fd = fanotify_init(FAN_CLASS_NOTIF | FAN_NONBLOCK /*| FAN_UNLIMITED_QUEUE | FAN_UNLIMITED_MARKS*/, O_RDONLY);

@@ -48,9 +48,8 @@ namespace gie {
             if(!ec){
                 this->read_events_(ec, size);
             } else {
-                GIE_DEBUG_LOG("CANCELED: " << ec.message());
-
                 if(ec==boost::system::errc::operation_canceled){
+                    GIE_DEBUG_LOG("CANCELED: " << ec.message());
 
                 } else {
                     GIE_THROW(gie::exception::unexpected() << gie::exception::error_code_einfo(ec));

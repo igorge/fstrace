@@ -1,4 +1,5 @@
 //================================================================================================================================================
+#include "async_writer.hpp"
 
 #include "mount_change_monitor.hpp"
 
@@ -19,6 +20,8 @@
 #include <boost/range/adaptor/filtered.hpp>
 #include <boost/program_options.hpp>
 
+#include <boost/iostreams/stream.hpp>
+#include <boost/iostreams/device/back_inserter.hpp>
 //================================================================================================================================================
 
 std::set<std::string> const ignore_fs_types{"sysfs", "cgroup", "proc", "devtmpfs", "devpts", "pstore", "securityfs", "rpc_pipefs", "fusectl", "binfmt_misc", "fuseblk", "fuse"};
@@ -42,14 +45,11 @@ int main(int argc, char *argv[]) {
 
     return ::gie::main([&](){
 
-        GIE_UNEXPECTED();
-
         auto const old_loc  = std::locale::global(boost::locale::generator().generate(""));
         std::locale loc;
         GIE_DEBUG_LOG(  "The previous locale is: " << old_loc.name( )  );
         GIE_DEBUG_LOG(  "The current locale is: " << loc.name( )  );
         boost::filesystem::path::imbue(std::locale());
-
 
 
         po::options_description options_desc("Allowed options");
@@ -65,15 +65,46 @@ int main(int argc, char *argv[]) {
         if (options_values.count("help") ) { std::cout << options_desc <<std::endl; return EXIT_SUCCESS; }
 
 
+        GIE_CHECK_ERRNO( signal(SIGPIPE, SIG_IGN)!=SIG_ERR );
 
         auto const & mounts = gie::parse_mounts(gie::read_proc_file("/proc/self/mountinfo"));
         GIE_DEBUG_LOG("MOUNTS: " <<  mounts.size());
 
         auto const& filtered_mounts = filter_mounts(mounts, ignore_fs_types);
 
-        gie::mount_change_monitor_t fsmonitor{[](auto const pid, auto const& exe, auto const& file, auto const event_mask){
-            std::cout << exe << " ("<<pid<<"): ["<<gie::mount_change_monitor_t::event_mask2string(event_mask)<<"] " << file << std::endl;
+        auto const& io = boost::make_shared<gie::shared_io_service_t::element_type>();
 
+        auto const get_stdout= []{
+            auto const& fn = fileno(stdout);
+            GIE_CHECK_ERRNO( fn!=-1 );
+            auto const& tmp = dup(fn);
+            GIE_CHECK_ERRNO( tmp!=-1 );
+            return tmp;
+        };
+        gie::async_writer_t data_writer{io, boost::asio::posix::stream_descriptor{*io, get_stdout()}};
+
+        auto const& direct_write_fun = [](auto const pid, auto const& exe, auto const& file, auto const event_mask){
+            std::cout << exe << " ("<<pid<<"): ["<<gie::mount_change_monitor_t::event_mask2string(event_mask)<<"] " << file << std::endl;
+        };
+
+        auto const& async_write_fun = [&data_writer](auto const pid, auto const& exe, auto const& file, auto const event_mask){
+
+            auto const& shared_buffer= boost::make_shared<std::vector<char> >();
+
+            boost::iostreams::stream<boost::iostreams::back_insert_device<std::vector<char> > > tmp_stream(*shared_buffer);
+
+            tmp_stream << exe << " ("<<pid<<"): ["<<gie::mount_change_monitor_t::event_mask2string(event_mask)<<"] " << file << std::endl;
+            tmp_stream.flush();
+            GIE_CHECK(!tmp_stream.bad());
+
+            data_writer.async_write(shared_buffer);
+        };
+
+
+        gie::mount_change_monitor_t fsmonitor{io, [&,self_pid=getpgrp()](auto const pid, auto const& exe, auto const& file, auto const event_mask){
+            if(pid!=self_pid){
+                async_write_fun(pid, exe, file, event_mask);
+            }
         }};
 
         for( auto&& i:filtered_mounts){
