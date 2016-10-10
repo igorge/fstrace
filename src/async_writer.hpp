@@ -42,22 +42,38 @@ namespace gie {
         }
 
 
+        shared_buffer_t get_shared_buffer(){
+            return boost::make_shared<shared_buffer_t::element_type>();
+        }
+
+        void release_vector(shared_buffer_t&& buffer){
+            if( !buffer.unique() ) {
+                GIE_DEBUG_LOG("shared_buffer_t is not unique");
+            } else {
+                //GIE_DEBUG_LOG("buffer can be reused");
+                buffer.reset();
+            }
+
+
+        }
+
+
         void async_write(shared_buffer_t const& data){
             m_io->post([this,data](){
                 if(busy_()) {
-                    GIE_DEBUG_LOG("WRITER: Busy, enqueuing.");
+                    //GIE_DEBUG_LOG("WRITER: Busy, enqueuing.");
                     m_queue.push( data );
                 } else {
-                    GIE_DEBUG_LOG("WRITER: Idle, direct async write.");
+                    //GIE_DEBUG_LOG("WRITER: Idle, direct async write.");
                     m_queue.push( data );
                     async_write_(m_queue.front());
                 }
             });
         }
 
-        void async_write_(shared_buffer_t const& data){
-
-            boost::asio::async_write(m_out, boost::asio::buffer(*data),  [this,data](boost::system::error_code const & ec, long unsigned int const& size){
+        template <class T>
+        auto async_wrap_(T&& fun) {
+            return [this,fun=std::forward<T>(fun)](boost::system::error_code const & ec, long unsigned int const& size)mutable{
 
                 if(ec){
                     if(ec==boost::system::errc::operation_canceled){
@@ -72,18 +88,30 @@ namespace gie {
                     }
                 }
 
+                fun(ec, size);
+            };
+        }
+
+        void async_write_(shared_buffer_t & data){
+
+            boost::asio::async_write(m_out, boost::asio::buffer(*data),  async_wrap_([this,data](boost::system::error_code const & ec, long unsigned int const& size) mutable {
+
                 GIE_CHECK(size==data->size());
 
+
                 m_queue.pop(); //remove completed buffer
+                release_vector( std::move(data));
 
                 if(m_queue.empty()){
-                    GIE_DEBUG_LOG("WRITER: No more work.");
+                    // GIE_DEBUG_LOG("WRITER: No more work.");
                 } else {
-                    GIE_DEBUG_LOG("WRITER: More work on list, doing async write. queue length: "<<m_queue.size()<<".");
-                    async_write_( m_queue.front() );
+                    GIE_DEBUG_IF_LOG(m_queue.size()>2048, "WRITER: Warning, queue length: "<<m_queue.size()<<".");
+                    auto & current = m_queue.front();
+                    auto header = get_shared_buffer();
+                    async_write_( current );
                 }
 
-            });
+            }));
 
         }
 
