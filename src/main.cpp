@@ -1,4 +1,6 @@
 //================================================================================================================================================
+#include "test_dummy.hpp"
+
 #include "async_writer.hpp"
 
 #include "mount_change_monitor.hpp"
@@ -51,6 +53,7 @@ int main(int argc, char *argv[]) {
         GIE_DEBUG_LOG(  "The current locale is: " << loc.name( )  );
         boost::filesystem::path::imbue(std::locale());
 
+        gie::test_dummy();
 
         po::options_description options_desc("Allowed options");
         po::variables_map       options_values;
