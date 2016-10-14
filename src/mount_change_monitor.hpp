@@ -116,6 +116,7 @@ namespace gie {
 
             m_io.post([this]{
                 m_aborted = true;
+                m_fanotify_asio_handle.cancel();
             });
         }
         bool is_aborted_()const{

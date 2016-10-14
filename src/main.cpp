@@ -84,7 +84,10 @@ int main(int argc, char *argv[]) {
             GIE_CHECK_ERRNO( tmp!=-1 );
             return tmp;
         };
-        gie::async_writer_t data_writer{io, boost::asio::posix::stream_descriptor{*io, get_stdout()}};
+
+
+        auto const& io_writer = boost::make_shared<gie::shared_io_service_t::element_type>();
+        gie::async_writer_t data_writer{io_writer, boost::asio::posix::stream_descriptor{*io_writer, get_stdout()}};
 
         auto const& direct_write_fun = [](auto const pid, auto const& exe, auto const& file, auto const event_mask){
             std::cout << exe << " ("<<pid<<"): ["<<gie::mount_change_monitor_t::event_mask2string(event_mask)<<"] " << file << std::endl;

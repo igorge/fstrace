@@ -10,6 +10,7 @@
 //================================================================================================================================================
 #include "gie/sio2/sio2_push_back_stream.hpp"
 #include "gie/asio/simple_common.hpp"
+#include "gie/asio/simple_service.hpp"
 
 #include <boost/asio.hpp>
 #include <boost/system/error_code.hpp>
@@ -79,20 +80,27 @@ namespace gie {
 
         ~async_writer_t(){
             try{
+                m_io.post([this]{
+                    m_aborted = true;
+                    m_out.cancel();
+                });
+
                 m_out.cancel();
+
+                m_io.stop_sync();
             }catch(...){
                 GIE_UNEXPECTED_IN_DTOR();
             }
         }
 
 
-        shared_buffer_t get_shared_buffer(){
+        shared_buffer_t get_shared_buffer()const{
             return boost::make_shared<shared_buffer_t::element_type>();
         }
 
 
         void async_write(shared_buffer_t const& data){
-            m_io->post([this,data](){
+            m_io.post([this,data](){
                 if(busy_()) {
                     //GIE_DEBUG_LOG("WRITER: Busy, enqueuing.");
                     m_queue.push( data );
@@ -103,6 +111,10 @@ namespace gie {
                 }
             });
         }
+
+    private:
+
+        bool m_aborted = false;
 
         void async_write_2_(shared_buffer_t const & data){
 
@@ -196,7 +208,7 @@ namespace gie {
 
 
     private:
-        shared_io_service_t m_io;
+        gie::simple_asio_service_t<> m_io;
         boost::asio::posix::stream_descriptor m_out;
         std::queue<shared_buffer_t> m_queue;
 
