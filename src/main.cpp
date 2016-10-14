@@ -125,6 +125,7 @@ int main(int argc, char *argv[]) {
         GIE_CHECK( pthread_sigmask( SIG_BLOCK, &set, NULL )==0 );
         GIE_CHECK(sigwait(&set, &sig)==0);
         GIE_CHECK(sig==SIGINT);
+
         GIE_DEBUG_LOG("Terminated.");
 
         return EXIT_SUCCESS;

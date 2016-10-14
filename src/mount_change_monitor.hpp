@@ -72,8 +72,11 @@ namespace gie {
         mount_change_monitor_t(T2 && callback) : mount_change_monitor_t( boost::make_shared<gie::shared_io_service_t::element_type>(), std::forward<T2>(callback) ){}
 
         ~mount_change_monitor_t(){
+            GIE_DEBUG_TRACE_INOUT();
+
             try {
-                m_fanotify_asio_handle.cancel();
+                GIE_DEBUG_LOG("m_fanotify_asio_handle.cancel()");
+                this->abort_();
                 m_io.stop_sync();
             } catch (...) {
                 GIE_UNEXPECTED_IN_DTOR();
@@ -94,6 +97,7 @@ namespace gie {
         std::vector<char> m_buffer;
         async_io_t m_io;
         callback_t m_callback;
+        bool m_aborted = false;
 
         boost::asio::posix::stream_descriptor m_fanotify_asio_handle = ([&](){
             auto const fanotify_fd = fanotify_init(FAN_CLASS_NOTIF | FAN_NONBLOCK /*| FAN_UNLIMITED_QUEUE | FAN_UNLIMITED_MARKS*/, O_RDONLY);
@@ -105,6 +109,18 @@ namespace gie {
                 throw;
             }
         })();
+
+        void abort_(){
+            GIE_DEBUG_TRACE_INOUT();
+            m_fanotify_asio_handle.cancel();
+
+            m_io.post([this]{
+                m_aborted = true;
+            });
+        }
+        bool is_aborted_()const{
+            return m_aborted;
+        }
 
         void async_read_events_();
         void process_notify_event_(fanotify_event_metadata const& event);
