@@ -1,34 +1,21 @@
 //================================================================================================================================================
+#include "serializable_writer.hpp"
 #include "test_dummy.hpp"
-
 #include "async_writer.hpp"
-
 #include "mount_change_monitor.hpp"
 
 #include "gie/utils/linux/mount_info_parser.hpp"
 #include "gie/utils/linux/proc.hpp"
-#include "gie/sio/util-sio.hpp"
-#include "gie/util-scope-exit.hpp"
-#include "gie/exceptions.hpp"
 #include "gie/easy_start/safe_main.hpp"
-#include "gie/debug.hpp"
 
 #include <boost/locale.hpp>
-#include <boost/filesystem.hpp>
-#include <boost/system/system_error.hpp>
 
 #include <boost/range/algorithm/copy.hpp>
 #include <boost/range/adaptor/filtered.hpp>
 #include <boost/program_options.hpp>
-
-#include <boost/iostreams/stream.hpp>
-#include <boost/iostreams/device/back_inserter.hpp>
-
-
-#include <boost/archive/text_oarchive.hpp>
 //================================================================================================================================================
 
-std::set<std::string> const ignore_fs_types{"sysfs", "cgroup", "proc", "devtmpfs", "devpts", "pstore", "securityfs", "rpc_pipefs", "fusectl", "binfmt_misc", "fuseblk", "fuse"};
+std::set<std::string> const ignore_fs_types{"debugfs", "sysfs", "cgroup", "proc", "devtmpfs", "devpts", "pstore", "securityfs", "rpc_pipefs", "fusectl", "binfmt_misc", "fuseblk", "fuse"};
 
 template <class Vec>
 auto filter_mounts(Vec const& input, std::set<std::string> const& filter)->auto{
@@ -78,47 +65,21 @@ int main(int argc, char *argv[]) {
 
         auto const& filtered_mounts = filter_mounts(mounts, ignore_fs_types);
 
-        auto const& io = boost::make_shared<gie::shared_io_service_t::element_type>();
 
-        auto const get_stdout= []{
-            auto const& fn = fileno(stdout);
-            GIE_CHECK_ERRNO( fn!=-1 );
-            auto const& tmp = dup(fn);
-            GIE_CHECK_ERRNO( tmp!=-1 );
-            return tmp;
-        };
+        notify_callback_t callback;
+        gie::serializable_writer_holder_t data_writer_holder;
 
+        if (options_values.count("serialize")){
+            data_writer_holder = gie::make_serializable_writer(callback);
+        } else {
+            callback = [](auto const pid, auto const& exe, auto const& file, auto const event_mask){
+                std::cout << exe << " ("<<pid<<"): ["<<gie::mount_change_monitor_t::event_mask2string(event_mask)<<"] " << file << std::endl;
+            };
+        }
 
-        auto const& io_writer = boost::make_shared<gie::shared_io_service_t::element_type>();
-        gie::async_writer_t data_writer{io_writer, boost::asio::posix::stream_descriptor{*io_writer, get_stdout()}};
-
-        auto const& direct_write_fun = [](auto const pid, auto const& exe, auto const& file, auto const event_mask){
-            std::cout << exe << " ("<<pid<<"): ["<<gie::mount_change_monitor_t::event_mask2string(event_mask)<<"] " << file << std::endl;
-        };
-
-        auto const& async_write_fun = [&data_writer](auto const pid, auto const& exe, auto const& file, auto const event_mask){
-
-            auto const& shared_buffer= boost::make_shared<std::vector<char> >();
-
-            boost::iostreams::stream<boost::iostreams::back_insert_device<std::vector<char> > > tmp_stream(*shared_buffer);
-
-
-            {
-                boost::archive::text_oarchive oa(tmp_stream);
-                oa << pid << exe.native() << file.native() << event_mask;
-            }
-
-            //tmp_stream << exe << " ("<<pid<<"): ["<<gie::mount_change_monitor_t::event_mask2string(event_mask)<<"] " << file << std::endl;
-            tmp_stream.flush();
-            GIE_CHECK(!tmp_stream.bad());
-
-            data_writer.async_write(shared_buffer);
-        };
-
-
-        gie::mount_change_monitor_t fsmonitor{io, [&,self_pid=getpgrp()](auto const pid, auto const& exe, auto const& file, auto const event_mask){
+        gie::mount_change_monitor_t fsmonitor{boost::make_shared<gie::shared_io_service_t::element_type>(), [&,self_pid=getpgrp()](auto const pid, auto const& exe, auto const& file, auto const event_mask){
             if(pid!=self_pid){
-                async_write_fun(pid, exe, file, event_mask);
+                callback(pid, exe, file, event_mask);
             }
         }};
 
