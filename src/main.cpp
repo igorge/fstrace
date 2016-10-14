@@ -16,7 +16,6 @@
 #include <boost/locale.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/system/system_error.hpp>
-#include <boost/filesystem.hpp>
 
 #include <boost/range/algorithm/copy.hpp>
 #include <boost/range/adaptor/filtered.hpp>
@@ -24,6 +23,9 @@
 
 #include <boost/iostreams/stream.hpp>
 #include <boost/iostreams/device/back_inserter.hpp>
+
+
+#include <boost/archive/text_oarchive.hpp>
 //================================================================================================================================================
 
 std::set<std::string> const ignore_fs_types{"sysfs", "cgroup", "proc", "devtmpfs", "devpts", "pstore", "securityfs", "rpc_pipefs", "fusectl", "binfmt_misc", "fuseblk", "fuse"};
@@ -60,6 +62,7 @@ int main(int argc, char *argv[]) {
 
         options_desc.add_options()
                 ("help", "produce help message")
+                ("serialize", "output in format suitable for consumption by other application via pipe: [4-octet-length][boost::archive::text_oarchive data: pid exe file event-mask]")
                 ;
 
         po::store(po::command_line_parser(argc, argv).options(options_desc).run(), options_values);
@@ -99,7 +102,13 @@ int main(int argc, char *argv[]) {
 
             boost::iostreams::stream<boost::iostreams::back_insert_device<std::vector<char> > > tmp_stream(*shared_buffer);
 
-            tmp_stream << exe << " ("<<pid<<"): ["<<gie::mount_change_monitor_t::event_mask2string(event_mask)<<"] " << file << std::endl;
+
+            {
+                boost::archive::text_oarchive oa(tmp_stream);
+                oa << pid << exe.native() << file.native() << event_mask;
+            }
+
+            //tmp_stream << exe << " ("<<pid<<"): ["<<gie::mount_change_monitor_t::event_mask2string(event_mask)<<"] " << file << std::endl;
             tmp_stream.flush();
             GIE_CHECK(!tmp_stream.bad());
 
