@@ -10,6 +10,7 @@
 //================================================================================================================================================
 #include "timeout_cache.hpp"
 
+#include "gie/asio/custom_alloc_handler.hpp"
 #include "gie/asio/simple_service.hpp"
 #include "gie/exceptions.hpp"
 #include "gie/util-scope-exit.hpp"

@@ -15,7 +15,7 @@
 //================================================================================================================================================
 namespace gie {
 
-    boost::shared_ptr<void> make_serializable_writer(notify_callback_t& callback){
+    serializable_writer_holder_t make_serializable_writer(notify_callback_t& callback, buffer_allocator_t const& buffer_allocator){
 
         auto const get_stdout= []{
             auto const& fn = fileno(stdout);
@@ -30,9 +30,10 @@ namespace gie {
         auto const& data_writer = boost::make_shared<gie::async_writer_t>(io_writer, boost::asio::posix::stream_descriptor{*io_writer, get_stdout()});
 
 
-        callback = [data_writer](auto const pid, auto const& exe, auto const& file, auto const event_mask){
+        callback = [data_writer, buffer_allocator](auto const pid, auto const& exe, auto const& file, auto const event_mask){
 
-            auto const& shared_buffer= boost::make_shared<std::vector<char> >();
+            auto const& shared_buffer = buffer_allocator();
+            //auto const& shared_buffer = boost::make_shared<std::vector<char> >();
 
             boost::iostreams::stream<boost::iostreams::back_insert_device<std::vector<char> > > tmp_stream(*shared_buffer);
 

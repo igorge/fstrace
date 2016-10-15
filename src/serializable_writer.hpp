@@ -15,7 +15,9 @@
 namespace gie {
 
     typedef boost::shared_ptr<void> serializable_writer_holder_t;
-    boost::shared_ptr<void> make_serializable_writer(notify_callback_t& callback);
+    typedef std::function<boost::shared_ptr<std::vector<char>>()> buffer_allocator_t;
+
+    serializable_writer_holder_t make_serializable_writer(notify_callback_t& callback, buffer_allocator_t const& buffer_allocator);
 
 }
 //================================================================================================================================================

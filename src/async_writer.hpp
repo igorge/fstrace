@@ -74,6 +74,7 @@ namespace gie {
         explicit async_writer_t(T&& io, boost::asio::posix::stream_descriptor && out)
                 : m_io( std::forward<T>(io) )
                 , m_out( std::move(out) )
+                , m_strand( m_io.service() )
         {
 
         }
@@ -91,52 +92,69 @@ namespace gie {
             }catch(...){
                 GIE_UNEXPECTED_IN_DTOR();
             }
+
+            assert(!m_is_cached_vector_busy);
         }
 
-
-        shared_buffer_t get_shared_buffer()const{
-            return boost::make_shared<shared_buffer_t::element_type>();
-        }
 
 
         void async_write(shared_buffer_t const& data){
-            m_io.post([this,data](){
+            m_io.post(m_strand.wrap([this,data](){
                 if(busy_()) {
                     //GIE_DEBUG_LOG("WRITER: Busy, enqueuing.");
                     m_queue.push( data );
                 } else {
                     //GIE_DEBUG_LOG("WRITER: Idle, direct async write.");
                     m_queue.push( data );
-                    async_write_2_(m_queue.front());
+                    async_write_one_(m_queue.front());
                 }
-            });
+            }));
         }
 
     private:
 
-        bool m_aborted = false;
-
-        void async_write_2_(shared_buffer_t const & data){
-
-            async_write_size_and_buffer_(data, [this](auto&& eh){
+        bool m_is_cached_vector_busy = false;
+        shared_buffer_t::element_type m_cached_vector;
 
 
-                m_queue.pop(); //remove completed buffer
+        shared_buffer_t get_shared_buffer_(){ // returns cached buffer
 
-                if(m_queue.empty()){
-                    // GIE_DEBUG_LOG("WRITER: No more work.");
-                } else {
-                    GIE_DEBUG_IF_LOG(m_queue.size()>2048, "WRITER: Warning, queue length: "<<m_queue.size()<<".");
-                    auto & current = m_queue.front();
-                    auto header = get_shared_buffer();
+            if(m_is_cached_vector_busy){
+                GIE_DEBUG_LOG("Cached vector is busy!");
+                return boost::make_shared<shared_buffer_t::element_type>();
+            } else {
 
-                    async_write_2_(current);
-                }
+                boost::shared_ptr<shared_buffer_t::element_type> tmp{ &m_cached_vector, [this](shared_buffer_t::element_type * const buffer){
+                    GIE_CHECK( buffer==&m_cached_vector );
 
+                    m_cached_vector.clear();
+                    m_is_cached_vector_busy = false;
+                }};
 
-            },[this]{
-                try{
-                    throw;
+                m_is_cached_vector_busy = true;
+
+                return tmp;
+
+            }
+
+        }
+
+        void async_write_one_(shared_buffer_t const & data) {
+            async_write_size_and_buffer_(data, [this](std::exception_ptr const& e) {
+                try {
+                    if(e) std::rethrow_exception(e);
+
+                    m_queue.pop(); //remove completed buffer
+
+                    if (m_queue.empty()) {
+                        // GIE_DEBUG_LOG("WRITER: No more work.");
+                    } else {
+                        GIE_DEBUG_IF_LOG(m_queue.size() > 1024,
+                                         "WRITER: Warning, queue length: " << m_queue.size() << ".");
+                        auto &current = m_queue.front();
+
+                        async_write_one_(current);
+                    }
 
                 } catch (exception::broken_pipe const& e){
                     auto const ec = boost::get_error_info<gie::exception::error_code_einfo>(e);
@@ -148,57 +166,62 @@ namespace gie {
                     GIE_DEBUG_LOG("CANCELED: " << ec->message());
                 }
             });
-
         }
 
-        template <class ContT, class ExceptionHandlerT >
-        void async_write_size_and_buffer_(shared_buffer_t const & data, ContT&& continuation, ExceptionHandlerT&& eh){
+
+        template <class ContT>
+        void async_write_size_and_buffer_(shared_buffer_t const & data, ContT&& continuation){
 
             GIE_CHECK(data->size()<=std::numeric_limits<std::uint32_t>::max());
             GIE_DEBUG_IF_LOG(m_queue.size()==0, "WARNING: zero length write.");
 
-            auto size_buffer = get_shared_buffer();
+            auto size_buffer = get_shared_buffer_();
 
             std::uint32_t size = static_cast<std::uint32_t>(data->size());
 
             sio2::push_back_writer_t<shared_buffer_t::element_type>{*size_buffer}(sio2::as<sio2::tag::uint32_le>(size));
             assert(size_buffer->size()==4);
 
-            async_write_(size_buffer, [this, data, continuation=std::forward<ContT>(continuation)](auto&& eh){
-                async_write_(data, continuation, eh);
-            }, eh);
+            async_write_(size_buffer, [this, data, continuation=std::forward<ContT>(continuation)](std::exception_ptr const& e){
+                try {
+                    if(e) std::rethrow_exception(e);
+                    async_write_(data, continuation);
+                }catch (...){
+                    continuation(std::current_exception());
+                }
+            });
 
 
         };
 
-        template <class ContT, class ExceptionHandlerT >
-        void async_write_(shared_buffer_t const & data, ContT&& continuation, ExceptionHandlerT&& eh){
+
+        template <class ContT>
+        void async_write_(shared_buffer_t const & data, ContT&& continuation){
 
             boost::asio::async_write(
-                m_out,
-                boost::asio::buffer(*data),
-                [this, data, continuation=std::forward<ContT>(continuation), eh=std::forward<ExceptionHandlerT>(eh)]
-                        (boost::system::error_code const & ec, long unsigned int const& size) {
-                try{
+                    m_out,
+                    boost::asio::buffer(*data),
+                    m_strand.wrap([this, data, continuation=std::forward<ContT>(continuation)](boost::system::error_code const & ec, long unsigned int const& size) {
+                        try{
 
-                    if(ec){
-                        if(ec==boost::system::errc::operation_canceled){
-                            GIE_THROW(exception::cancelled()<< gie::exception::error_code_einfo(ec));
-                        } else if(ec==boost::system::errc::broken_pipe) {
-                            GIE_THROW(exception::broken_pipe()<< gie::exception::error_code_einfo(ec));
-                        } else {
-                            GIE_THROW(exception::error_code() << gie::exception::error_code_einfo(ec));
+                            if(ec){
+                                if(ec==boost::system::errc::operation_canceled){
+                                    GIE_THROW(exception::cancelled() << gie::exception::error_code_einfo(ec));
+                                } else if(ec==boost::system::errc::broken_pipe) {
+                                    GIE_THROW(exception::broken_pipe() << gie::exception::error_code_einfo(ec));
+                                } else {
+                                    GIE_THROW(exception::error_code() << gie::exception::error_code_einfo(ec));
+                                }
+                            }
+
+                            GIE_CHECK(size==data->size());
+
+                            continuation(std::exception_ptr());
+                        } catch (...){
+                            continuation(std::current_exception());
                         }
-                    }
 
-                    GIE_CHECK(size==data->size());
-
-                    continuation(eh);
-                } catch (...){
-                    eh();
-                }
-
-            });
+                    }));
 
         }
 
@@ -211,6 +234,10 @@ namespace gie {
         gie::simple_asio_service_t<> m_io;
         boost::asio::posix::stream_descriptor m_out;
         std::queue<shared_buffer_t> m_queue;
+
+        boost::asio::strand m_strand;
+
+        bool m_aborted = false;
 
     };
 
