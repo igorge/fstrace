@@ -1,5 +1,5 @@
 //================================================================================================================================================
-#include "gie/cached_object_pool.hpp"
+#include "allocator.hpp"
 #include "serializable_writer.hpp"
 #include "test_dummy.hpp"
 #include "mount_change_monitor.hpp"
@@ -66,19 +66,13 @@ int main(int argc, char *argv[]) {
         auto const& filtered_mounts = filter_mounts(mounts, ignore_fs_types);
 
 
-        gie::cached_pool_t<std::vector<char>> pool{ [](std::vector<char>& v){ v.clear(); }};
-
-
-        typedef gie::simple_to_std_allocator_t<char, gie::simple_mt_allocator_t<gie::simple_caching_allocator>> std_caching_allocator_t;
-        gie::simple_mt_allocator_t<gie::simple_caching_allocator> m_caching_allocator{};
-        std_caching_allocator_t m_std_caching_allocator{m_caching_allocator};
-
+        gie::caching_simple_allocator_t caching_allocator{};
 
         notify_callback_t callback;
         gie::serializable_writer_holder_t data_writer_holder;
 
         if (!options_values.count("serialize")){
-            data_writer_holder = gie::make_serializable_writer(callback, [&pool](){ return pool.alloc(); });
+            data_writer_holder = gie::make_serializable_writer(callback, caching_allocator);
         } else {
             callback = [](auto const pid, auto const& exe, auto const& file, auto const event_mask){
                 std::cout << exe << " ("<<pid<<"): ["<<gie::mount_change_monitor_t::event_mask2string(event_mask)<<"] " << file << std::endl;

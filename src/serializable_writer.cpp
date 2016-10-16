@@ -5,6 +5,7 @@
 //================================================================================================================================================
 #include "serializable_writer.hpp"
 //================================================================================================================================================
+#include "allocator.hpp"
 #include "async_writer.hpp"
 
 #include <boost/iostreams/stream.hpp>
@@ -15,7 +16,7 @@
 //================================================================================================================================================
 namespace gie {
 
-    serializable_writer_holder_t make_serializable_writer(notify_callback_t& callback, buffer_allocator_t const& buffer_allocator){
+    serializable_writer_holder_t make_serializable_writer(notify_callback_t& callback, caching_simple_allocator_t& caching_allocator){
 
         auto const get_stdout= []{
             auto const& fn = fileno(stdout);
@@ -26,17 +27,16 @@ namespace gie {
         };
 
 
+        std_caching_allocator_t allocator{caching_allocator};
+
         auto const& io_writer = boost::make_shared<gie::shared_io_service_t::element_type>();
-        auto const& data_writer = boost::make_shared<gie::async_writer_t>(io_writer, boost::asio::posix::stream_descriptor{*io_writer, get_stdout()});
+        auto const& data_writer = boost::make_shared<gie::async_writer_t>(allocator, io_writer, boost::asio::posix::stream_descriptor{*io_writer, get_stdout()});
 
+        callback = [data_writer, allocator](auto const pid, auto const& exe, auto const& file, auto const event_mask){
 
-        callback = [data_writer, buffer_allocator](auto const pid, auto const& exe, auto const& file, auto const event_mask){
+            auto const& shared_buffer = allocate_buffer(allocator);
 
-            auto const& shared_buffer = buffer_allocator();
-            //auto const& shared_buffer = boost::make_shared<std::vector<char> >();
-
-            boost::iostreams::stream<boost::iostreams::back_insert_device<std::vector<char> > > tmp_stream(*shared_buffer);
-
+            boost::iostreams::stream<boost::iostreams::back_insert_device< gie::buffer_t > > tmp_stream(*shared_buffer);
 
             {
                 boost::archive::text_oarchive oa(tmp_stream);

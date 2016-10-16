@@ -8,6 +8,7 @@
 //================================================================================================================================================
 #pragma once
 //================================================================================================================================================
+#include "allocator.hpp"
 #include "gie/sio2/sio2_push_back_stream.hpp"
 #include "gie/asio/simple_common.hpp"
 #include "gie/asio/simple_service.hpp"
@@ -67,12 +68,13 @@ namespace gie {
 
     struct async_writer_t { // use only with 1 async worker thread
 
-        typedef boost::shared_ptr<std::vector<char> > shared_buffer_t;
+        typedef gie::shared_buffer_t shared_buffer_t;
 
 
         template <class T>
-        explicit async_writer_t(T&& io, boost::asio::posix::stream_descriptor && out)
-                : m_io( std::forward<T>(io) )
+        explicit async_writer_t(std_caching_allocator_t const& allocator, T&& io, boost::asio::posix::stream_descriptor && out)
+                : m_allocator (allocator)
+                , m_io( std::forward<T>(io) )
                 , m_out( std::move(out) )
                 , m_strand( m_io.service() )
         {
@@ -93,7 +95,6 @@ namespace gie {
                 GIE_UNEXPECTED_IN_DTOR();
             }
 
-            assert(!m_is_cached_vector_busy);
         }
 
 
@@ -113,30 +114,8 @@ namespace gie {
 
     private:
 
-        bool m_is_cached_vector_busy = false;
-        shared_buffer_t::element_type m_cached_vector;
-
-
-        shared_buffer_t get_shared_buffer_(){ // returns cached buffer
-
-            if(m_is_cached_vector_busy){
-                GIE_DEBUG_LOG("Cached vector is busy!");
-                return boost::make_shared<shared_buffer_t::element_type>();
-            } else {
-
-                boost::shared_ptr<shared_buffer_t::element_type> tmp{ &m_cached_vector, [this](shared_buffer_t::element_type * const buffer){
-                    GIE_CHECK( buffer==&m_cached_vector );
-
-                    m_cached_vector.clear();
-                    m_is_cached_vector_busy = false;
-                }};
-
-                m_is_cached_vector_busy = true;
-
-                return tmp;
-
-            }
-
+        shared_buffer_t get_shared_buffer_(){
+            return allocate_buffer(m_allocator);
         }
 
         void async_write_one_(shared_buffer_t const & data) {
@@ -231,6 +210,7 @@ namespace gie {
 
 
     private:
+        std_caching_allocator_t m_allocator;
         gie::simple_asio_service_t<> m_io;
         boost::asio::posix::stream_descriptor m_out;
         std::queue<shared_buffer_t> m_queue;
@@ -238,6 +218,7 @@ namespace gie {
         boost::asio::strand m_strand;
 
         bool m_aborted = false;
+
 
     };
 

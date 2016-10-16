@@ -8,16 +8,15 @@
 //================================================================================================================================================
 #pragma once
 //================================================================================================================================================
+#include "allocator.hpp"
 #include "notify_callback_t.hpp"
 
-#include <boost/shared_ptr.hpp>
 //================================================================================================================================================
 namespace gie {
 
     typedef boost::shared_ptr<void> serializable_writer_holder_t;
-    typedef std::function<boost::shared_ptr<std::vector<char>>()> buffer_allocator_t;
 
-    serializable_writer_holder_t make_serializable_writer(notify_callback_t& callback, buffer_allocator_t const& buffer_allocator);
+    serializable_writer_holder_t make_serializable_writer(notify_callback_t& callback, caching_simple_allocator_t& caching_allocator);
 
 }
 //================================================================================================================================================
