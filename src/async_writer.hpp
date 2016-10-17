@@ -10,6 +10,7 @@
 //================================================================================================================================================
 #include "allocator.hpp"
 #include "gie/sio2/sio2_push_back_stream.hpp"
+#include "gie/asio/custom_alloc_handler.hpp"
 #include "gie/asio/simple_common.hpp"
 #include "gie/asio/simple_service.hpp"
 
@@ -180,7 +181,7 @@ namespace gie {
             boost::asio::async_write(
                     m_out,
                     boost::asio::buffer(*data),
-                    m_strand.wrap([this, data, continuation=std::forward<ContT>(continuation)](boost::system::error_code const & ec, long unsigned int const& size) {
+                    make_custom_alloc_handler(m_strand.wrap([this, data, continuation=std::forward<ContT>(continuation)](boost::system::error_code const & ec, long unsigned int const& size) {
                         try{
 
                             if(ec){
@@ -200,7 +201,7 @@ namespace gie {
                             continuation(std::current_exception());
                         }
 
-                    }));
+                    }), std_allocator_to_simple(m_allocator)));
 
         }
 

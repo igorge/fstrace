@@ -1,12 +1,12 @@
 //================================================================================================================================================
 #include "allocator.hpp"
 #include "serializable_writer.hpp"
-#include "test_dummy.hpp"
 #include "mount_change_monitor.hpp"
 
 #include "gie/utils/linux/mount_info_parser.hpp"
 #include "gie/utils/linux/proc.hpp"
 #include "gie/easy_start/safe_main.hpp"
+#include "gie/exceptions.hpp"
 
 #include <boost/locale.hpp>
 
@@ -42,8 +42,6 @@ int main(int argc, char *argv[]) {
         GIE_DEBUG_LOG(  "The current locale is: " << loc.name( )  );
         boost::filesystem::path::imbue(std::locale());
 
-        gie::test_dummy();
-
         po::options_description options_desc("Allowed options");
         po::variables_map       options_values;
 
@@ -57,8 +55,11 @@ int main(int argc, char *argv[]) {
 
         if (options_values.count("help") ) { std::cout << options_desc <<std::endl; return EXIT_SUCCESS; }
 
+        auto const is_serialize = options_values.count("serialize")!=0;
+
 
         GIE_CHECK_ERRNO( signal(SIGPIPE, SIG_IGN)!=SIG_ERR );
+        GIE_CHECK_ERRNO( signal(SIGINT, SIG_IGN)!=SIG_ERR );
 
         auto const & mounts = gie::parse_mounts(gie::read_proc_file("/proc/self/mountinfo"));
         GIE_DEBUG_LOG("MOUNTS: " <<  mounts.size());
@@ -71,11 +72,15 @@ int main(int argc, char *argv[]) {
         notify_callback_t callback;
         gie::serializable_writer_holder_t data_writer_holder;
 
-        if (!options_values.count("serialize")){
+        if (is_serialize){
             data_writer_holder = gie::make_serializable_writer(callback, caching_allocator);
         } else {
-            callback = [](auto const pid, auto const& exe, auto const& file, auto const event_mask){
-                std::cout << exe << " ("<<pid<<"): ["<<gie::mount_change_monitor_t::event_mask2string(event_mask)<<"] " << file << std::endl;
+            callback = [main_thread=pthread_self()](auto const pid, auto const& exe, auto const& file, auto const event_mask){
+                if(std::cout.good()){
+                    std::cout << exe << " ("<<pid<<"): ["<<gie::mount_change_monitor_t::event_mask2string(event_mask)<<"] " << file << std::endl;
+                }else {
+                    GIE_CHECK( pthread_kill(main_thread, SIGINT)==0 );
+                }
             };
         }
 

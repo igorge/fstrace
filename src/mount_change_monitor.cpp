@@ -44,7 +44,7 @@ namespace gie {
 
 
     void mount_change_monitor_t::async_read_events_(){
-        m_fanotify_asio_handle.async_read_some(boost::asio::buffer(m_buffer), [this](boost::system::error_code const & ec, long unsigned int const& size){
+        m_fanotify_asio_handle.async_read_some(boost::asio::buffer(m_buffer), make_custom_alloc_handler([this](boost::system::error_code const & ec, long unsigned int const& size){
             if(!ec){
                 this->read_events_(ec, size);
             } else {
@@ -55,7 +55,7 @@ namespace gie {
                     GIE_THROW(gie::exception::unexpected() << gie::exception::error_code_einfo(ec));
                 }
             }
-        });
+        }, make_ref_wrapper(m_allocator)));
     };
 
 

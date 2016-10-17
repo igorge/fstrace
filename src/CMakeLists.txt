@@ -36,8 +36,7 @@ set(SOURCE_FILES
         gie/utils/linux/mount_info_parser.cpp
         mount_change_monitor.cpp
         serializable_writer.cpp
-        gie/utils/linux/proc.cpp
-        test_dummy.cpp)
+        gie/utils/linux/proc.cpp)
 
 
 ############################################################################

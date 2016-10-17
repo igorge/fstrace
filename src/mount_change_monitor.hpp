@@ -10,6 +10,7 @@
 //================================================================================================================================================
 #include "timeout_cache.hpp"
 
+#include "gie/simple_caching_allocator.hpp"
 #include "gie/asio/custom_alloc_handler.hpp"
 #include "gie/asio/simple_service.hpp"
 #include "gie/exceptions.hpp"
@@ -99,6 +100,7 @@ namespace gie {
         async_io_t m_io;
         callback_t m_callback;
         bool m_aborted = false;
+        simple_caching_allocator m_allocator{};
 
         boost::asio::posix::stream_descriptor m_fanotify_asio_handle = ([&](){
             auto const fanotify_fd = fanotify_init(FAN_CLASS_NOTIF | FAN_NONBLOCK /*| FAN_UNLIMITED_QUEUE | FAN_UNLIMITED_MARKS*/, O_RDONLY);
