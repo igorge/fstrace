@@ -15,6 +15,14 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     message("*** Debug build. ***")
     add_definitions(-DBOOST_MULTI_INDEX_ENABLE_SAFE_MODE)
     add_definitions(-DBOOST_MULTI_INDEX_ENABLE_INVARIANT_CHECKING)
+
+    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvtable-verify=std")
+    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=thread")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=undefined")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=float-cast-overflow")
+
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-sanitize-recover")
 endif ()
 
 ############################################################################
