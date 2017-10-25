@@ -18,7 +18,7 @@ namespace {
     typedef decltype(fanotify_event_metadata::mask) event_mask_t;
     typedef boost::filesystem::path path_t;
 
-    typedef std::function<void(pid_t,path_t,path_t,event_mask_t)> notify_callback_t;
+    typedef std::function<void(pid_t, path_t, path_t, event_mask_t)> notify_callback_t;
 }
 //================================================================================================================================================
 #endif

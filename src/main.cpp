@@ -58,8 +58,8 @@ int main(int argc, char *argv[]) {
         auto const is_serialize = options_values.count("serialize")!=0;
 
 
-        GIE_CHECK_ERRNO( signal(SIGPIPE, SIG_IGN)!=SIG_ERR );
-        GIE_CHECK_ERRNO( signal(SIGINT, SIG_IGN)!=SIG_ERR );
+        boost::asio::io_service io;
+        boost::asio::signal_set signals(io, SIGINT, SIGPIPE);
 
         auto const & mounts = gie::parse_mounts(gie::read_proc_file("/proc/self/mountinfo"));
         GIE_DEBUG_LOG("MOUNTS: " <<  mounts.size());
@@ -69,26 +69,34 @@ int main(int argc, char *argv[]) {
 
         gie::caching_simple_allocator_t caching_allocator{};
 
-        notify_callback_t callback;
-        gie::serializable_writer_holder_t data_writer_holder;
+        auto const& callback = [&]() -> notify_callback_t {
+            if (is_serialize) {
+                return gie::make_serializable_writer(caching_allocator);
+            } else {
+                return [main_thread = pthread_self()](auto const pid, auto const &exe, auto const &file,
+                                                      auto const event_mask) {
+                    if (std::cout.good()) {
+                        std::cout << exe << " (" << pid << "): ["
+                                  << gie::mount_change_monitor_t::event_mask2string(event_mask) << "] " << file
+                                  << std::endl;
+                    } else {
+                        GIE_CHECK(pthread_kill(main_thread, SIGINT) == 0);
+                    }
+                };
+            }
+        }();
 
-        if (is_serialize){
-            data_writer_holder = gie::make_serializable_writer(callback, caching_allocator);
-        } else {
-            callback = [main_thread=pthread_self()](auto const pid, auto const& exe, auto const& file, auto const event_mask){
-                if(std::cout.good()){
-                    std::cout << exe << " ("<<pid<<"): ["<<gie::mount_change_monitor_t::event_mask2string(event_mask)<<"] " << file << std::endl;
-                }else {
-                    GIE_CHECK( pthread_kill(main_thread, SIGINT)==0 );
-                }
-            };
-        }
-
-        gie::mount_change_monitor_t fsmonitor{boost::make_shared<gie::shared_io_service_t::element_type>(), [&,self_pid=getpgrp()](auto const pid, auto const& exe, auto const& file, auto const event_mask){
+        gie::mount_change_monitor_t fsmonitor{io, [&,self_pid=getpgrp()](auto const pid, auto const& exe, auto const& file, auto const event_mask){
             if(pid!=self_pid){
                 callback(pid, exe, file, event_mask);
             }
         }};
+
+        signals.async_wait([&](auto err, int signal){
+            GIE_DEBUG_LOG("SIGNAL: " << signal);
+            fsmonitor.abort();
+        });
+
 
         for( auto&& i:filtered_mounts){
             GIE_DEBUG_LOG("MONITORING '" << boost::get<0>(i.fs_type) << "' @ '" <<i.mount_point<<"'");
@@ -98,13 +106,7 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        sigset_t set;
-        GIE_CHECK( sigemptyset(&set)==0 );
-        GIE_CHECK( sigaddset(&set, SIGINT)==0 );
-        int sig=0;
-        GIE_CHECK( pthread_sigmask( SIG_BLOCK, &set, NULL )==0 );
-        GIE_CHECK(sigwait(&set, &sig)==0);
-        GIE_CHECK(sig==SIGINT);
+        io.run();
 
         GIE_DEBUG_LOG("Terminated.");
 

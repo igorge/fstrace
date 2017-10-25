@@ -14,9 +14,7 @@
 //================================================================================================================================================
 namespace gie {
 
-    typedef boost::shared_ptr<void> serializable_writer_holder_t;
-
-    serializable_writer_holder_t make_serializable_writer(notify_callback_t& callback, caching_simple_allocator_t& caching_allocator);
+    notify_callback_t make_serializable_writer(caching_simple_allocator_t& caching_allocator);
 
 }
 //================================================================================================================================================

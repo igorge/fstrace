@@ -28,14 +28,13 @@ namespace gie {
         struct fanotify_mark : virtual fanotify {};
     }
 
-    using async_io_t = gie::simple_asio_service_t<>;
-
 
     struct mount_change_monitor_t {
         typedef boost::filesystem::path path_t;
         typedef decltype(fanotify_event_metadata::pid) pid_t;
         typedef decltype(fanotify_event_metadata::mask) event_mask_t;
 
+        using async_io_t = boost::asio::io_service;
 
         struct cached_pid_t{
             pid_t pid;
@@ -79,7 +78,6 @@ namespace gie {
             try {
                 GIE_DEBUG_LOG("m_fanotify_asio_handle.cancel()");
                 this->abort_();
-                m_io.stop_sync();
             } catch (...) {
                 GIE_UNEXPECTED_IN_DTOR();
             }
@@ -92,12 +90,17 @@ namespace gie {
                     exception::fanotify_mark() << exception::error_str_einfo(mount_point) );
         }
 
-        auto io_service()->auto& { return m_io.service(); }
-        auto io_shared_service()->auto{ return m_io.shared_service(); }
+        auto io_service() -> async_io_t& {
+            return m_io;
+        }
+
+        void abort(){
+            abort_();
+        }
 
     private:
         std::vector<char> m_buffer;
-        async_io_t m_io;
+        async_io_t& m_io;
         callback_t m_callback;
         bool m_aborted = false;
         simple_caching_allocator m_allocator{};
@@ -106,7 +109,7 @@ namespace gie {
             auto const fanotify_fd = fanotify_init(FAN_CLASS_NOTIF | FAN_NONBLOCK /*| FAN_UNLIMITED_QUEUE | FAN_UNLIMITED_MARKS*/, O_RDONLY);
             GIE_CHECK_ERRNO(fanotify_fd!=-1);
             try {
-                return boost::asio::posix::stream_descriptor{m_io.service(), fanotify_fd};
+                return boost::asio::posix::stream_descriptor{io_service(), fanotify_fd};
             } catch (...) {
                 GIE_CHECK_ERRNO( close(fanotify_fd)!= -1);
                 throw;
