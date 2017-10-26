@@ -58,6 +58,9 @@ int main(int argc, char *argv[]) {
         auto const is_serialize = options_values.count("serialize")!=0;
 
 
+        gie::simple_allocator_to_i_adapter_t<gie::simple_caching_allocator> allocator{}; // main, input io_service allocator
+        gie::caching_simple_allocator_t caching_allocator{}; // output io_service allocator
+
         boost::asio::io_service io;
         boost::asio::signal_set signals(io, SIGINT, SIGPIPE);
 
@@ -65,9 +68,6 @@ int main(int argc, char *argv[]) {
         GIE_DEBUG_LOG("MOUNTS: " <<  mounts.size());
 
         auto const& filtered_mounts = filter_mounts(mounts, ignore_fs_types);
-
-
-        gie::caching_simple_allocator_t caching_allocator{};
 
         auto const& callback = [&]() -> notify_callback_t {
             if (is_serialize) {
@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
             }
         }();
 
-        gie::mount_change_monitor_t fsmonitor{io, [&,self_pid=getpgrp()](auto const pid, auto const& exe, auto const& file, auto const event_mask){
+        gie::mount_change_monitor_t fsmonitor{allocator, io, [&,self_pid=getpgrp()](auto const pid, auto const& exe, auto const& file, auto const event_mask){
             if(pid!=self_pid){
                 callback(pid, exe, file, event_mask);
             }

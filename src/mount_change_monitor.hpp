@@ -60,17 +60,15 @@ namespace gie {
         mount_change_monitor_t& operator=(mount_change_monitor_t const&) = delete;
 
         template <class T1, class T2>
-        mount_change_monitor_t(T1 && io, T2 && callback)
-                : m_io(io)
+        mount_change_monitor_t(simple_allocator_i& allocator, T1 && io, T2 && callback)
+                : m_allocator(allocator)
+                , m_io(io)
                 , m_callback(std::forward<T2>(callback))
         {
             m_buffer.resize(event_buffer_size);
 
             async_read_events_();
         };
-
-        template <class T2>
-        mount_change_monitor_t(T2 && callback) : mount_change_monitor_t( boost::make_shared<gie::shared_io_service_t::element_type>(), std::forward<T2>(callback) ){}
 
         ~mount_change_monitor_t(){
             GIE_DEBUG_TRACE_INOUT();
@@ -100,10 +98,10 @@ namespace gie {
 
     private:
         std::vector<char> m_buffer;
+        simple_allocator_i& m_allocator;
         async_io_t& m_io;
         callback_t m_callback;
         bool m_aborted = false;
-        simple_caching_allocator m_allocator{};
 
         boost::asio::posix::stream_descriptor m_fanotify_asio_handle = ([&](){
             auto const fanotify_fd = fanotify_init(FAN_CLASS_NOTIF | FAN_NONBLOCK /*| FAN_UNLIMITED_QUEUE | FAN_UNLIMITED_MARKS*/, O_RDONLY);
