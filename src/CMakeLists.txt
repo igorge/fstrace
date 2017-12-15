@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.7 FATAL_ERROR)
-project(fstrace)
-set(proj_exe_name fstrace)
+
+project(fstrace LANGUAGES CXX)
+
+set(BINARY_NAME fstrace)
 
 #set(CMAKE_VERBOSE_MAKEFILE ON)
 
@@ -8,20 +10,18 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -Wall -Wextra -Wno-deprecated -Wno-unused-parameter")
-
-find_package(Boost COMPONENTS filesystem system thread program_options serialization date_time locale)
+#find_package(Boost COMPONENTS filesystem system thread program_options serialization date_time locale)
+find_package(Boost COMPONENTS filesystem thread program_options serialization locale)
 ############################################################################
-
-#add_definitions(-D_FILE_OFFSET_BITS=64)
 
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvtable-verify=std")
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=thread")
 set(SANITAZERS "${SANITAZERS} -fsanitize=address")
 set(SANITAZERS "${SANITAZERS} -fsanitize=undefined")
 set(SANITAZERS "${SANITAZERS} -fsanitize=float-cast-overflow")
+set(SANITAZERS "${SANITAZERS} -fno-sanitize-recover")
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-sanitize-recover")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wno-deprecated -Wno-unused-parameter")
 
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -fno-omit-frame-pointer ${SANITAZERS} -DBOOST_MULTI_INDEX_ENABLE_SAFE_MODE -DBOOST_MULTI_INDEX_ENABLE_INVARIANT_CHECKING")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -DNDEBUG -O3")
@@ -31,16 +31,7 @@ set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} -DNDEBUG -Os")
 ############################################################################
 add_subdirectory(../../libgie/ ${PROJECT_BINARY_DIR}/extlib/gie )
 
-set(gie_include_dir ${gie_include_dir} ${libgie_SOURCE_DIR}/include)
-set(gie_link_libs ${gie_link_libs} libgie)
-
 ############################################################################
-
-include_directories(
-        ${CMAKE_CURRENT_BINARY_DIR} ${Boost_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR} ${gie_include_dir} )
-
-############################################################################
-
 
 set(SOURCE_FILES
         main.cpp
@@ -52,9 +43,16 @@ set(SOURCE_FILES
 
 ############################################################################
 
-add_executable(${proj_exe_name} ${SOURCE_FILES})
+add_executable(${BINARY_NAME} ${SOURCE_FILES})
+
+target_include_directories(
+        ${BINARY_NAME}
+        PRIVATE
+        ${CMAKE_CURRENT_BINARY_DIR}
+        ${PROJECT_SOURCE_DIR})
 
 target_link_libraries(
-        ${proj_exe_name}
-        ${Boost_LIBRARIES}
-        ${gie_link_libs} )
+        ${BINARY_NAME}
+        PRIVATE
+        Boost::filesystem Boost::thread Boost::program_options Boost::serialization Boost::locale
+        libgie )
