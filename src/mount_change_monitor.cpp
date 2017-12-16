@@ -6,10 +6,6 @@
 #include "mount_change_monitor.hpp"
 //================================================================================================================================================
 namespace gie {
-    boost::filesystem::path const mount_change_monitor_t::m_self_fd = boost::filesystem::path{"/proc/self/fd"};
-
-
-
 
     void mount_change_monitor_t::process_notify_event_(fanotify_event_metadata const& event){
         GIE_CHECK(event.vers==FANOTIFY_METADATA_VERSION);

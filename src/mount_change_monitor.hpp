@@ -136,7 +136,7 @@ namespace gie {
             if( (em & bit) == bit) str+=c;
         }
 
-        static boost::filesystem::path const m_self_fd;
+        inline static boost::filesystem::path const m_self_fd = boost::filesystem::path{"/proc/self/fd"};
 
     public:
         static std::string event_mask2string(event_mask_t const em){

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.7 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.9 FATAL_ERROR)
 
 project(fstrace LANGUAGES CXX)
 
@@ -6,9 +6,9 @@ set(BINARY_NAME fstrace)
 
 #set(CMAKE_VERBOSE_MAKEFILE ON)
 
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+#set(CMAKE_CXX_STANDARD 17)
+#set(CMAKE_CXX_STANDARD_REQUIRED ON)
+#set(CMAKE_CXX_EXTENSIONS OFF)
 
 #find_package(Boost COMPONENTS filesystem system thread program_options serialization date_time locale)
 find_package(Boost COMPONENTS filesystem thread program_options serialization locale)
@@ -19,7 +19,7 @@ find_package(Boost COMPONENTS filesystem thread program_options serialization lo
 set(SANITAZERS "${SANITAZERS} -fsanitize=address")
 set(SANITAZERS "${SANITAZERS} -fsanitize=undefined")
 set(SANITAZERS "${SANITAZERS} -fsanitize=float-cast-overflow")
-set(SANITAZERS "${SANITAZERS} -fno-sanitize-recover")
+set(SANITAZERS "${SANITAZERS} -fno-sanitize-recover=all")
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wno-deprecated -Wno-unused-parameter")
 
@@ -32,18 +32,22 @@ set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} -DNDEBUG -Os")
 add_subdirectory(../../libgie/ ${PROJECT_BINARY_DIR}/extlib/gie )
 
 ############################################################################
+add_executable(${BINARY_NAME} main.cpp)
 
-set(SOURCE_FILES
-        main.cpp
+target_compile_features( ${BINARY_NAME} PRIVATE cxx_std_17 )
+
+#set_property(
+#        TARGET ${BINARY_NAME}
+#        PROPERTY CXX_CLANG_TIDY clang-tidy;-checks=performance-*,-checks=modernize-*)
+
+
+target_sources(
+        ${BINARY_NAME}
+        PRIVATE
         gie/utils/linux/mount_info_parser.cpp
         mount_change_monitor.cpp
         serializable_writer.cpp
         gie/utils/linux/proc.cpp)
-
-
-############################################################################
-
-add_executable(${BINARY_NAME} ${SOURCE_FILES})
 
 target_include_directories(
         ${BINARY_NAME}
