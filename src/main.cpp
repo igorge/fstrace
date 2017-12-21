@@ -29,10 +29,9 @@ auto filter_mounts(Vec const& input, std::set<std::string> const& filter)->auto{
 
 namespace po = boost::program_options;
 
-
-
-
 int main(int argc, char *argv[]) {
+
+    auto const logger_state = gie::logger::init_logging_to_stderr();
 
     return ::gie::main([&](){
 

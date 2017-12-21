@@ -10,8 +10,10 @@ set(BINARY_NAME fstrace)
 #set(CMAKE_CXX_STANDARD_REQUIRED ON)
 #set(CMAKE_CXX_EXTENSIONS OFF)
 
+add_definitions(-DBOOST_LOG_DYN_LINK)
+
 #find_package(Boost COMPONENTS filesystem system thread program_options serialization date_time locale)
-find_package(Boost COMPONENTS filesystem thread program_options serialization locale)
+find_package(Boost REQUIRED COMPONENTS filesystem thread program_options serialization locale system)
 ############################################################################
 
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvtable-verify=std")
@@ -29,8 +31,9 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -DNDEBUG -
 set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} -DNDEBUG -Os")
 
 ############################################################################
-add_subdirectory(../../libgie/ ${PROJECT_BINARY_DIR}/extlib/gie )
+set(GIE_CONF_USE_G3LOG TRUE)
 
+add_subdirectory(../../libgie/ ${PROJECT_BINARY_DIR}/extlib/gie )
 ############################################################################
 add_executable(${BINARY_NAME} main.cpp)
 
@@ -58,5 +61,5 @@ target_include_directories(
 target_link_libraries(
         ${BINARY_NAME}
         PRIVATE
-        Boost::filesystem Boost::thread Boost::program_options Boost::serialization Boost::locale
+        ${Boost_LIBRARIES}
         libgie )

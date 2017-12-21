@@ -216,7 +216,7 @@ namespace gie {
         boost::asio::posix::stream_descriptor m_out;
         std::queue<shared_buffer_t> m_queue;
 
-        boost::asio::strand m_strand;
+        boost::asio::io_service::strand m_strand;
 
         bool m_aborted = false;
 
